@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -39,6 +40,32 @@ var secretKey = ApiSettings.GenerateSecretByte();
 builder.Services.AddIdentity<IdentityUser, IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders();
+
+builder.Services.AddSwaggerGen(options =>
+{
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme()
+    {
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.Http,
+        Scheme = "Bearer"
+    });
+
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
 
 //Add Jwt Token
 
@@ -94,7 +121,7 @@ app.MapGet("/api/categories", async (ICategory categoryData, IMapper mapper) =>
     var categories = await categoryData.GetAll();
     var categoriesDto = mapper.Map<IEnumerable<CategoryDTO>>(categories);
     return Results.Ok(categoriesDto);
-});
+}).RequireAuthorization();
 
 //GET /api/categories/{id}
 app.MapGet("/api/categories/{id}", async (ICategory categoryData, IMapper mapper, int id) =>
@@ -174,7 +201,8 @@ app.MapPost("/api/users", async (UserManager<IdentityUser> userManager, IMapper 
         var result = await userManager.CreateAsync(user, userAddDTO.Password);
         if (result.Succeeded)
         {
-            return Results.Created($"/api/users/{user.Id}", user);
+            UserDTO userDTO = mapper.Map<UserDTO>(user);
+            return Results.Created($"/api/users/{user.Id}", userDTO);
         }
         else
         {
