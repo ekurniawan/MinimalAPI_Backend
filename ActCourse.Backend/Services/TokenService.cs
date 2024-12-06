@@ -8,18 +8,24 @@ namespace ActCourse.Backend.Services
 {
     internal class TokenService
     {
-        internal string GenerateToken(IdentityUser user)
+        internal async Task<string> GenerateToken(UserManager<IdentityUser> userManager, IdentityUser user)
         {
+            //get current user role
+            List<Claim> claims = new List<Claim>();
+            claims.Add(new Claim(ClaimTypes.Name, user.UserName));
+            var roles = await userManager.GetRolesAsync(user);
+            foreach (var role in roles)
+            {
+                claims.Add(new Claim(ClaimTypes.Role, role));
+            }
+
             var tokenHandler = new JwtSecurityTokenHandler();
 
             var key = ApiSettings.GenerateSecretByte();
 
             var tokenDescriptor = new SecurityTokenDescriptor
             {
-                Subject = new ClaimsIdentity(new Claim[]
-                {
-                    new Claim(ClaimTypes.Name,user.UserName.ToString()),
-                }),
+                Subject = new ClaimsIdentity(claims),
                 Expires = DateTime.UtcNow.AddMinutes(30),
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
             };

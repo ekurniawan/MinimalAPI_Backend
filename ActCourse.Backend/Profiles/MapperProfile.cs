@@ -16,6 +16,7 @@ namespace ActCourse.Backend.Profiles
             CreateMap<CategoryUpdateDTO, Category>();
             CreateMap<UserAddDTO, IdentityUser>();
             CreateMap<IdentityUser, UserDTO>();
+            CreateMap<IdentityRole, RoleDTO>();
         }
     }
 }

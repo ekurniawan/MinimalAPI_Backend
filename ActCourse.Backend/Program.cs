@@ -88,9 +88,12 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization(options =>
 {
+    options.AddPolicy("Admin", policy => policy.RequireRole("admin"));
+    options.AddPolicy("Dosen", policy => policy.RequireRole("dosen"));
     options.DefaultPolicy = new AuthorizationPolicyBuilder(JwtBearerDefaults.AuthenticationScheme)
         .RequireAuthenticatedUser()
         .Build();
+
 });
 
 
@@ -121,7 +124,7 @@ app.MapGet("/api/categories", async (ICategory categoryData, IMapper mapper) =>
     var categories = await categoryData.GetAll();
     var categoriesDto = mapper.Map<IEnumerable<CategoryDTO>>(categories);
     return Results.Ok(categoriesDto);
-}).RequireAuthorization();
+}).RequireAuthorization("Admin");
 
 //GET /api/categories/{id}
 app.MapGet("/api/categories/{id}", async (ICategory categoryData, IMapper mapper, int id) =>
@@ -240,16 +243,74 @@ app.MapPost("/api/login", async (UserManager<IdentityUser> userManager, IMapper 
     var result = await userManager.CheckPasswordAsync(user, userLoginDTO.Password);
     if (result)
     {
-        var token = tokenService.GenerateToken(user);
+        var token = await tokenService.GenerateToken(userManager, user);
         UserWithTokenDTO userWithTokenDTO = new UserWithTokenDTO
         {
             Email = user.Email,
             UserName = user.UserName,
-            Token = tokenService.GenerateToken(user)
+            Token = token
         };
         return Results.Ok(userWithTokenDTO);
     }
     return Results.BadRequest("Invalid login attempt");
+});
+
+//add role
+app.MapPost("/api/roles", async (RoleManager<IdentityRole> roleManager, RoleAddDTO roleAddDTO) =>
+{
+    var role = new IdentityRole
+    {
+        Name = roleAddDTO.Name
+    };
+    var result = await roleManager.CreateAsync(role);
+    if (result.Succeeded)
+    {
+        RoleDTO roleDTO = new RoleDTO
+        {
+            Id = role.Id,
+            Name = role.Name
+        };
+        return Results.Created($"/api/roles/{role.Id}", roleDTO);
+    }
+    return Results.BadRequest(result.Errors);
+});
+
+//get role by id
+app.MapGet("/api/roles/{id}", async (RoleManager<IdentityRole> roleManager, string id) =>
+{
+    var role = await roleManager.FindByIdAsync(id);
+    if (role == null)
+    {
+        return Results.NotFound();
+    }
+    RoleDTO roleDTO = new RoleDTO
+    {
+        Id = id,
+        Name = role.Name
+    };
+    return Results.Ok(roleDTO);
+});
+
+//register user to role
+app.MapPost("/api/registeruserrole", async (UserManager<IdentityUser> userManager, RoleManager<IdentityRole> roleManager,
+     RegisterUserRoleDto registerUserRoleDto) =>
+{
+    var user = await userManager.FindByNameAsync(registerUserRoleDto.UserName);
+    if (user == null)
+    {
+        return Results.NotFound();
+    }
+    var role = await roleManager.FindByNameAsync(registerUserRoleDto.RoleName);
+    if (role == null)
+    {
+        return Results.NotFound();
+    }
+    var result = await userManager.AddToRoleAsync(user, role.Name);
+    if (result.Succeeded)
+    {
+        return Results.Ok();
+    }
+    return Results.BadRequest(result.Errors);
 });
 
 
