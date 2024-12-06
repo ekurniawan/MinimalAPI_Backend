@@ -188,14 +188,40 @@ app.MapPost("/api/users", async (UserManager<IdentityUser> userManager, IMapper 
 });
 
 //search user by id
-app.MapGet("/api/users/{id}", async (UserManager<IdentityUser> userManager, string id) =>
+app.MapGet("/api/users/{id}", async (UserManager<IdentityUser> userManager, IMapper mapper, string id) =>
 {
     var user = await userManager.FindByIdAsync(id);
     if (user == null)
     {
         return Results.NotFound();
     }
-    return Results.Ok(user);
+    UserDTO userDTO = mapper.Map<UserDTO>(user);
+    return Results.Ok(userDTO);
+});
+
+
+//create login page and return jwt token
+app.MapPost("/api/login", async (UserManager<IdentityUser> userManager, IMapper mapper, TokenService tokenService,
+    UserLoginDTO userLoginDTO) =>
+{
+    var user = await userManager.FindByEmailAsync(userLoginDTO.UserName);
+    if (user == null)
+    {
+        return Results.NotFound();
+    }
+    var result = await userManager.CheckPasswordAsync(user, userLoginDTO.Password);
+    if (result)
+    {
+        var token = tokenService.GenerateToken(user);
+        UserWithTokenDTO userWithTokenDTO = new UserWithTokenDTO
+        {
+            Email = user.Email,
+            UserName = user.UserName,
+            Token = tokenService.GenerateToken(user)
+        };
+        return Results.Ok(userWithTokenDTO);
+    }
+    return Results.BadRequest("Invalid login attempt");
 });
 
 
