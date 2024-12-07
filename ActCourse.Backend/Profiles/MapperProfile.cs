@@ -17,6 +17,16 @@ namespace ActCourse.Backend.Profiles
             CreateMap<UserAddDTO, IdentityUser>();
             CreateMap<IdentityUser, UserDTO>();
             CreateMap<IdentityRole, RoleDTO>();
+
+            CreateMap<Course, CourseDTO>();
+            CreateMap<CourseAddDTO, Course>();
+
+            CreateMap<Instructor, InstructorDTO>();
+            CreateMap<InstructorAddDTO, Instructor>();
+
+
+            CreateMap<Enrollment, EnrollmentDTO>();
+            CreateMap<EnrollmentAddDTO, Enrollment>();
         }
     }
 }

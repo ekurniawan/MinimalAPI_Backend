@@ -29,6 +29,9 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 
 //DI
 builder.Services.AddScoped<ICategory, CategoryData>();
+builder.Services.AddScoped<ICourse, CourseData>();
+builder.Services.AddScoped<IInstructor, InstructorData>();
+builder.Services.AddScoped<IEnrollment, EnrollmentData>();
 
 //Automapper
 builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
@@ -103,17 +106,26 @@ app.MapDefaultEndpoints();
 
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+/*if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.UseSwagger();
     app.UseSwaggerUI();
-}
+}*/
+
+app.MapOpenApi();
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+
+/*var adminRoutes = app.MapGroup("/admin");
+adminRoutes.RequireAuthorization("Admin");
+adminRoutes.MapGet("/dashboard", () => "Admin Dashboard");*/
 
 //Category API
 
@@ -194,7 +206,7 @@ app.MapDelete("/api/categories/{id}", async (ICategory categoryData, IMapper map
 
 
 //add new user
-app.MapPost("/api/users", async (UserManager<IdentityUser> userManager, IMapper mapper,
+app.MapPost("/api/users", async (UserManager<IdentityUser> userManager, IInstructor instructorData, IMapper mapper,
     UserAddDTO userAddDTO) =>
 {
     var user = mapper.Map<IdentityUser>(userAddDTO);
@@ -204,8 +216,18 @@ app.MapPost("/api/users", async (UserManager<IdentityUser> userManager, IMapper 
         var result = await userManager.CreateAsync(user, userAddDTO.Password);
         if (result.Succeeded)
         {
-            UserDTO userDTO = mapper.Map<UserDTO>(user);
-            return Results.Created($"/api/users/{user.Id}", userDTO);
+            //add instructor
+            var instructor = new Instructor
+            {
+                FullName = userAddDTO.FullName,
+                UserName = userAddDTO.UserName
+            };
+            await instructorData.Add(instructor);
+
+            InstructorDTO instructorDTO = mapper.Map<InstructorDTO>(instructor);
+            return Results.Created($"/api/instructors/{instructor.InstructorId}", instructorDTO);
+            //UserDTO userDTO = mapper.Map<UserDTO>(user);
+            //return Results.Created($"/api/users/{user.Id}", userDTO);
         }
         else
         {
@@ -217,6 +239,94 @@ app.MapPost("/api/users", async (UserManager<IdentityUser> userManager, IMapper 
         return Results.BadRequest(ex.Message);
     }
 });
+
+
+//Course API
+
+//get all courses
+app.MapGet("/api/courses", async (ICourse courseData, IMapper mapper) =>
+{
+    var courses = await courseData.GetAll();
+    var coursesDto = mapper.Map<IEnumerable<CourseDTO>>(courses);
+    return Results.Ok(coursesDto);
+});
+
+//get course by id
+app.MapGet("/api/courses/{id}", async (ICourse courseData, IMapper mapper, int id) =>
+{
+    try
+    {
+        var course = await courseData.GetById(id);
+        var courseDto = mapper.Map<CourseDTO>(course);
+        return Results.Ok(courseDto);
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(ex.Message);
+    }
+});
+
+//add Courses
+app.MapPost("/api/courses", async (ICourse courseData, IMapper mapper, CourseAddDTO courseAddDTO) =>
+{
+    var course = mapper.Map<Course>(courseAddDTO);
+    try
+    {
+        var newCourse = await courseData.Add(course);
+        var courseDto = mapper.Map<CourseDTO>(newCourse);
+        return Results.Created($"/api/courses/{courseDto.CourseId}", courseDto);
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(ex.Message);
+    }
+});
+
+//update courses
+app.MapPut("/api/courses/{id}", async (ICourse courseData, IMapper mapper, int id, CourseUpdateDTO courseUpdateDTO) =>
+{
+    var course = mapper.Map<Course>(courseUpdateDTO);
+    course.CourseId = id;
+    try
+    {
+        var updatedCourse = await courseData.Update(course);
+        var courseDto = mapper.Map<CourseDTO>(updatedCourse);
+        return Results.Ok(courseDto);
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(ex.Message);
+    }
+});
+
+//delete courses
+app.MapDelete("/api/courses/{id}", async (ICourse courseData, IMapper mapper, int id) =>
+{
+    try
+    {
+        var course = await courseData.Delete(id);
+        var courseDto = mapper.Map<CourseDTO>(course);
+        return Results.Ok(courseDto);
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(ex.Message);
+    }
+});
+
+
+
+//User
+
+//create method get all users from identity
+
+app.MapGet("/api/users", (UserManager<IdentityUser> userManager, IMapper mapper) =>
+{
+    var users = userManager.Users.ToList();
+    var usersDto = mapper.Map<IEnumerable<UserDTO>>(users);
+    return Results.Ok(usersDto);
+});
+
 
 //search user by id
 app.MapGet("/api/users/{id}", async (UserManager<IdentityUser> userManager, IMapper mapper, string id) =>
@@ -311,6 +421,38 @@ app.MapPost("/api/registeruserrole", async (UserManager<IdentityUser> userManage
         return Results.Ok();
     }
     return Results.BadRequest(result.Errors);
+});
+
+//add enrollment
+app.MapPost("/api/enrollments", async (IEnrollment enrollmentData, IMapper mapper, EnrollmentAddDTO enrollmentAddDTO) =>
+{
+    var enrollment = mapper.Map<Enrollment>(enrollmentAddDTO);
+    try
+    {
+        var newEnrollment = await enrollmentData.Add(enrollment);
+        var enrollmentDto = mapper.Map<EnrollmentDTO>(newEnrollment);
+        return Results.Created($"/api/enrollments/{enrollmentDto.EnrollmentId}", enrollmentDto);
+    }
+    catch (Exception ex)
+    {
+        return Results.BadRequest(ex.Message);
+    }
+});
+
+//get all enrollment
+app.MapGet("/api/enrollments", async (IEnrollment enrollmentData, IMapper mapper) =>
+{
+    var enrollments = await enrollmentData.GetAll();
+    var enrollmentsDto = mapper.Map<IEnumerable<EnrollmentDTO>>(enrollments);
+    return Results.Ok(enrollmentsDto);
+});
+
+//get all instructor
+app.MapGet("/api/instructors", async (IInstructor instructorData, IMapper mapper) =>
+{
+    var instructors = await instructorData.GetAll();
+    var instructorsDto = mapper.Map<IEnumerable<InstructorDTO>>(instructors);
+    return Results.Ok(instructorsDto);
 });
 
 
